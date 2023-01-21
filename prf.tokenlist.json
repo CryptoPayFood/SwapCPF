@@ -1,5 +1,5 @@
 {
-  "name": "prf",
+  "name": "CPF",
   "logoURI": "https://raw.githubusercontent.com/compound-finance/token-list/master/assets/compound-interface.svg",
   "keywords": [
     "compound",
@@ -8,21 +8,37 @@
   "timestamp": "2021-05-27T20:37:00.000+00:00",
   "tokens": [
    {
-    "chainId": 3,
-    "address": "0x7Bdf61288879FbeA55dbB81d12c6f3e3D9285388",
-    "name": "Prosperite Future 2024",
-    "symbol": "PRF-24",
+    "chainId": 56,
+    "address": "0xA3378bd30f9153aC12AFF64743841f4AFa29bC57",
+    "name": "Crypto Pay Food",
+    "symbol": "CPF",
     "decimals": 18,
     "logoURI": "https://raw.githubusercontent.com/crawazaky/Uniswap-UI-fork/master/asset_PRG-svg.svg"
   },
-   {
-    "chainId": 3,
-    "address": "0xcAF0Bb9d12Db478F1ff11437a112cfa24992111B",
-    "name": "Prosperite Future 2025",
-    "symbol": "PRF-25",
+  {
+    "chainId": 56,
+    "address": "0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3",
+    "name": "Dai Stablecoin",
+    "symbol": "DAI",
     "decimals": 18,
-    "logoURI": "https://raw.githubusercontent.com/crawazaky/Uniswap-UI-fork/master/asset_PRG-svg.svg"
-  }
+    "logoURI": "https://raw.githubusercontent.com/compound-finance/token-list/master/assets/asset_DAI.svg"
+    },
+    {
+    "chainId": 56,
+    "address": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+    "name": "Wrapped BNB",
+    "symbol": "WBNB",
+    "decimals": 18,
+    "logoURI": "https://upload.wikimedia.org/wikipedia/commons/1/1c/BNB%2C_native_cryptocurrency_for_the_Binance_Smart_Chain.svg"
+    },
+    {
+    "chainId": 56,
+    "address": "0x55d398326f99059fF775485246999027B3197955",
+    "name": "Tether USD",
+    "symbol": "USDT",
+    "decimals": 18,
+    "logoURI": "https://raw.githubusercontent.com/compound-finance/token-list/master/assets/asset_USDT.svg"
+    }
   ],
   "version": {
     "major": 2,
