@@ -915,35 +915,38 @@ function deposit(uint256 wethIn, address to) public override returns (uint256 st
     emit Deposit(to, address(this), wethIn, stableCoinAmount);
     afterDeposit(wethIn);
 }
-    /// @notice Stablecoin
-    /// Mint specific AMOUNT OF STABLE by giving WETH
-//    function mint(uint256 stableCoinAmount, address to) public override returns (uint256 wethIn) {
-//        require(CPF.transferFrom(msg.sender, address(this), wethIn = previewMint(stableCoinAmount)));
-//        _mint(to, stableCoinAmount);
-//        emit Deposit(to, address(this), wethIn, stableCoinAmount);
- //       afterDeposit(wethIn);
-//    }
+
 function mint(uint256 stableCoinAmount, address to) public override returns (uint256 wethIn) {
     require(to != address(0), "Invalid address");
     require(stableCoinAmount > 0, "Stable coin amount must be greater than 0");
-    require(CPF.transferFrom(msg.sender, address(this), wethIn = previewMint(stableCoinAmount)), "Transfer from CPF failed");
+    wethIn = previewMint(stableCoinAmount);
+    require(wethIn > 0, "Preview mint failed");
+    require(CPF.allowance(msg.sender, address(this)) >= wethIn, "Allowance is insufficient");
+    require(CPF.transferFrom(msg.sender, address(this), wethIn), "Transfer from CPF failed");
     _mint(to, stableCoinAmount);
     emit Deposit(to, address(this), wethIn, stableCoinAmount);
     afterDeposit(wethIn);
 }
+
     /// @notice Stablecoin
     /// Withdraw from Vault underlying. Amount of WETH by burning equivalent amount of STABLECOIN
-    function withdraw(
+function withdraw(
         uint256 amountReserve,
         address to,
         address from
     ) public override returns (uint256 wethOut) {
+        require(to != address(0), "Invalid address");
+        require(to != address(this), "Destination address cannot be this contract");
+        require(amountReserve > 0, "Reserve amount must be greater than 0");
         uint256 allowed = allowance[from][msg.sender];
-        if (msg.sender != from && allowed != type(uint256).max) allowance[from][msg.sender] = allowed - amountReserve;
+        if (msg.sender != from) {
+            require(allowed != type(uint256).max, "Not enough allowance");
+            allowance[from][msg.sender] = allowed - amountReserve;
+        }
         wethOut = (previewWithdraw(amountReserve) * withdrawFee) / maxFloatFee;        
         _burn(from, amountReserve);
         emit Withdraw(from, to, amountReserve, wethOut);
-        CPF.transferFrom(address(this), msg.sender, wethOut);
+        require(CPF.transferFrom(address(this), msg.sender, wethOut), "Transfer from CPF failed");
     }
 
     function redeem(
