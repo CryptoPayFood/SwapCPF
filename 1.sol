@@ -7,9 +7,11 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 //import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v3.3.0/contracts/token/ERC20/SafeERC20.sol";
 //import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v3.3.0/contracts/token/ERC20/ERC20.sol";
 
-contract USD_CP is ERC20, SafeERC20 {
-
+contract USD_CP {
+using SafeERC20 for uint256;
+using ERC20 for uint256;
 using SafeMath for uint256;
+
 
 address public constant BEP20_ADDRESS = 0xA3378bd30f9153aC12AFF64743841f4AFa29bC57;
 address public constant PANCAKESWAP_ADDRESS = 0xfbd61b037c325b959c0f6a7e69d8f37770c2c550;
