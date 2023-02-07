@@ -850,6 +850,7 @@ interface ICrosschainToken {
 contract StableVault is ERC20, IERC4626 {
     using SafeERC20 for ERC20;
     using SafeERC20 for IWETH9;
+    mapping(address => uint256) public lastWithdrawTime;
     uint256 public constant depositFee = 100; // 0.1% 
     uint256 public constant withdrawFee = 9000; // 99.0%
     uint256 public constant maxFloatFee = 10000; // 100%
@@ -934,13 +935,13 @@ function mint(uint256 stableCoinAmount, address to) public override returns (uin
 
     /// @notice Stablecoin
     /// Withdraw from Vault underlying. Amount of WETH by burning equivalent amount of STABLECOIN
-function withdraw(
+    function withdraw(
         uint256 amountReserve,
         address to,
         address from
     ) public override returns (uint256 wethOut) {
         require(to != address(0), "Invalid address");
-        require(wethOut >= 100 * 1e18, "Withdraw_AMOUNT_TOO_LOW");
+        require(amountReserve >= 100 * 1e18, "Withdraw_AMOUNT_TOO_LOW");
         require(to != address(this), "Destination address cannot be this contract");
         require(amountReserve > 0, "Reserve amount must be greater than 0");
         uint256 allowed = allowance[from][msg.sender];
@@ -948,11 +949,15 @@ function withdraw(
             require(allowed != type(uint256).max, "Not enough allowance");
             allowance[from][msg.sender] = allowed - amountReserve;
         }
+        uint256 currentTime = now;
+        require(currentTime - lastWithdrawTime[from] >= 30 minutes, "WITHDRAW_LIMIT_REACHED");
+        lastWithdrawTime[from] = currentTime;
         wethOut = (previewWithdraw(amountReserve) * withdrawFee) / maxFloatFee;        
         _burn(from, amountReserve);
         emit Withdraw(from, to, amountReserve, wethOut);
         require(CPF.transferFrom(address(this), msg.sender, wethOut), "Transfer from CPF failed");
     }
+}
 
 function redeem(
         uint256 amountStable,
