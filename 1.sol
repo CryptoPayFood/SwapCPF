@@ -1082,10 +1082,11 @@ function defund(
         return balanceOf[user];
     }
 
-    function getLatestPrice() public view returns (uint256) {
-        (uint256 weightedRate) = priceFeed
-            .getRate(0xA3378bd30f9153aC12AFF64743841f4AFa29bC57, 0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56, true);
-        return uint256(weightedRate);
-    }
+function getLatestPrice() public view returns (uint256) {
+    (uint256 weightedRate) = priceFeed
+        .getRate(0xA3378bd30f9153aC12AFF64743841f4AFa29bC57, 0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56, true);
+    require(weightedRate > 0, "Price feed error: Invalid rate returned");
+    return uint256(weightedRate);
+}
 
 }
