@@ -971,9 +971,12 @@ function redeem(
     /// @notice Volatility/Funding token
     /// Give amount of WETH, receive VolatilityToken
 function fund(uint256 volCoinAmount, address to) public returns (uint256 wethIn) {
-    require(to != address(0), "Invalid address");
+    require(to != address(0), "Invalid address: cannot deposit to the zero address");
+    require(volCoinAmount > 0, "Invalid deposit amount: must be greater than zero");
+    require(CPF.allowance(msg.sender, address(this)) >= volCoinAmount, "Not enough CPF allowed");
     require(CPF.transferFrom(msg.sender, address(this), wethIn = previewFund(volCoinAmount)), "Transfer from CPF failed");
-    volatile.mint(to, volCoinAmount);
+    require(volatile.allowed(address(this), to), "Sender not allowed to transfer volatile coins to the recipient");
+    require(volatile.mint(to, volCoinAmount), "Minting of volatile coin failed");
     volatilityBuffer += wethIn;
     emit Deposit(msg.sender, to, wethIn, volCoinAmount);
 }
