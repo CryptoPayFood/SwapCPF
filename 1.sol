@@ -904,22 +904,38 @@ contract StableVault is ERC20, IERC4626 {
    }
     /// @notice Stablecoin
     /// Give WETH amount, get STABLE amount
+ //   function deposit(uint256 wethIn, address to) public override returns (uint256 stableCoinAmount) {
+//        require((stableCoinAmount = previewDeposit(wethIn)) != 0, "ZERO_SHARES");
+ //       require(CPF.transferFrom(to, address(this), wethIn));
+ //       _mint(to, stableCoinAmount);
+ //       emit Deposit(to, address(this), wethIn, stableCoinAmount);
+ //       afterDeposit(wethIn);
+//    }
     function deposit(uint256 wethIn, address to) public override returns (uint256 stableCoinAmount) {
-        require((stableCoinAmount = previewDeposit(wethIn)) != 0, "ZERO_SHARES");
-        require(CPF.transferFrom(to, address(this), wethIn));
-        _mint(to, stableCoinAmount);
-        emit Deposit(to, address(this), wethIn, stableCoinAmount);
-        afterDeposit(wethIn);
-    }
+    require(wethIn != 0, "ZERO_SHARES");
+    require(CPF.transferFrom(to, address(this), wethIn));
+    stableCoinAmount = previewDeposit(wethIn);
+    require(stableCoinAmount != 0, "ZERO_SHARES");
+    _mint(to, stableCoinAmount);
+    emit Deposit(to, address(this), wethIn, stableCoinAmount);
+    afterDeposit(wethIn);
+}
     /// @notice Stablecoin
     /// Mint specific AMOUNT OF STABLE by giving WETH
-    function mint(uint256 stableCoinAmount, address to) public override returns (uint256 wethIn) {
-        require(CPF.transferFrom(msg.sender, address(this), wethIn = previewMint(stableCoinAmount)));
-        _mint(to, stableCoinAmount);
-        emit Deposit(to, address(this), wethIn, stableCoinAmount);
-        afterDeposit(wethIn);
-    }
-
+//    function mint(uint256 stableCoinAmount, address to) public override returns (uint256 wethIn) {
+//        require(CPF.transferFrom(msg.sender, address(this), wethIn = previewMint(stableCoinAmount)));
+//        _mint(to, stableCoinAmount);
+//        emit Deposit(to, address(this), wethIn, stableCoinAmount);
+ //       afterDeposit(wethIn);
+//    }
+function mint(uint256 stableCoinAmount, address to) public override returns (uint256 wethIn) {
+    require(to != address(0), "Invalid address");
+    require(stableCoinAmount > 0, "Stable coin amount must be greater than 0");
+    require(CPF.transferFrom(msg.sender, address(this), wethIn = previewMint(stableCoinAmount)), "Transfer from CPF failed");
+    _mint(to, stableCoinAmount);
+    emit Deposit(to, address(this), wethIn, stableCoinAmount);
+    afterDeposit(wethIn);
+}
     /// @notice Stablecoin
     /// Withdraw from Vault underlying. Amount of WETH by burning equivalent amount of STABLECOIN
     function withdraw(
@@ -935,8 +951,6 @@ contract StableVault is ERC20, IERC4626 {
         CPF.transferFrom(address(this), msg.sender, wethOut);
     }
 
-    /// @notice Stablecoin
-    /// Redeem from Vault underlying. (WETH) equivalent to AMOUNTSTABLE
     function redeem(
         uint256 amountStable,
         address to,
@@ -976,7 +990,7 @@ contract StableVault is ERC20, IERC4626 {
     }
 
     function previewFund(uint256 amount) public view returns (uint256 stableVaultShares) {
-        return amount / getLatestPrice(); // AMOUNT / (ETH/USD)
+        return amount / getLatestPrice() * 1e18; // AMOUNT / (ETH/USD)
     }
 
     /// @notice Volatility token
@@ -984,13 +998,13 @@ contract StableVault is ERC20, IERC4626 {
     /// https://jacob-eliosoff.medium.com/a-cheesy-analogy-for-people-who-find-usm-confusing-1fd5e3d73a79
     function previewDefund(uint256 amount) public view returns (uint256 wethOut) {
         uint256 sharesGrowth = amount * (volatilityBuffer * getLatestPrice()) / volatile.totalSupply();
-        wethOut = sharesGrowth / getLatestPrice();
+        wethOut = sharesGrowth / getLatestPrice() * 1e18;
     }
 
     /// @notice Stablecoin
     /// Return how much STABLECOIN does user receive for AMOUNT of WETH
     function previewDeposit(uint256 amount) public view override returns (uint256 stableCoinAmount) {
-        return getLatestPrice() * amount; // (ETH/USD) * AMOUNT
+        return getLatestPrice() * amount / 1e18; // (ETH/USD) * AMOUNT
     }
 
     /// @notice Stablecoin
@@ -1002,13 +1016,13 @@ contract StableVault is ERC20, IERC4626 {
     /// @notice Stablecoin
     /// Return how much WETH to transfer by calculating equivalent amount of burn to given AMOUNT of WETH
     function previewWithdraw(uint256 amount) public view override returns (uint256 wethOut) {
-        return getLatestPrice() * amount; // AMOUNT * (ETH/USD)
+        return amount / getLatestPrice() * 1e18; // AMOUNT * (ETH/USD)
     }
 
     /// @notice Stablecoin
     /// Return how much WETH to transfer equivalent to given AMOUNT of STABLECOIN
     function previewRedeem(uint256 amount) public view override returns (uint256 wethOut) {
-        return amount / getLatestPrice(); // AMOUNT / (ETH/USD)
+        return amount / getLatestPrice() * 1e18; // AMOUNT / (ETH/USD)
     }
 
     /*///////////////////////////////////////////////////////////////
