@@ -949,18 +949,23 @@ function withdraw(
         require(CPF.transferFrom(address(this), msg.sender, wethOut), "Transfer from CPF failed");
     }
 
-    function redeem(
+function redeem(
         uint256 amountStable,
         address to,
         address from
     ) public override returns (uint256 wethOut) {
+        require(to != address(0), "Invalid address");
+        require(amountStable > 0, "Stable coin amount must be greater than 0");
         uint256 allowed = allowance[from][msg.sender];
-        if (msg.sender != from && allowed != type(uint256).max) allowance[from][msg.sender] = allowed - amountStable;
+        if (msg.sender != from) {
+            require(allowed != type(uint256).max, "Not enough allowance");
+            allowance[from][msg.sender] = allowed - amountStable;
+        }
         require((wethOut = previewRedeem(amountStable)) != 0, "ZERO_ASSETS");
         wethOut = (previewRedeem(amountStable) * withdrawFee) / maxFloatFee;
         _burn(from, amountStable);
-        emit Withdraw(from, to, wethOut, amountStable);
-        CPF.transferFrom(address(this), msg.sender, wethOut);
+        emit Redeem(from, to, wethOut, amountStable);
+        require(CPF.transferFrom(address(this), msg.sender, wethOut), "Transfer from CPF failed");
     }
 
     /// @notice Volatility/Funding token
