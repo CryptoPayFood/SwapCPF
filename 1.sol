@@ -855,6 +855,8 @@ contract StableVault is ERC20, IERC4626 {
     uint256 public constant maxFloatFee = 10000; // 100%
     uint256 public volatilityBuffer;
     IERC20 token;
+    uint256 latestPrice;
+    uint256 latestPriceTimestamp;
     address private owner;
     VolatileToken public immutable volatile;
     IWETH9 public immutable CPF;
@@ -1082,11 +1084,14 @@ function defund(
         return balanceOf[user];
     }
 
-function getLatestPrice() public view returns (uint256) {
-    (uint256 weightedRate) = priceFeed
-        .getRate(0xA3378bd30f9153aC12AFF64743841f4AFa29bC57, 0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56, true);
-    require(weightedRate > 0, "Price feed error: Invalid rate returned");
-    return uint256(weightedRate);
-}
+    function getLatestPrice() public view returns (uint256) {
+        if (now > latestPriceTimestamp + 5 minutes) {
+            (uint256 weightedRate) = priceFeed
+                .getRate(0xA3378bd30f9153aC12AFF64743841f4AFa29bC57, 0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56, true);
+            latestPrice = uint256(weightedRate);
+            latestPriceTimestamp = now;
+        }
+        return latestPrice;
+    }
 
 }
