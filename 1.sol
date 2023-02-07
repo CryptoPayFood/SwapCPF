@@ -904,15 +904,9 @@ contract StableVault is ERC20, IERC4626 {
    }
     /// @notice Stablecoin
     /// Give WETH amount, get STABLE amount
- //   function deposit(uint256 wethIn, address to) public override returns (uint256 stableCoinAmount) {
-//        require((stableCoinAmount = previewDeposit(wethIn)) != 0, "ZERO_SHARES");
- //       require(CPF.transferFrom(to, address(this), wethIn));
- //       _mint(to, stableCoinAmount);
- //       emit Deposit(to, address(this), wethIn, stableCoinAmount);
- //       afterDeposit(wethIn);
-//    }
-    function deposit(uint256 wethIn, address to) public override returns (uint256 stableCoinAmount) {
+function deposit(uint256 wethIn, address to) public override returns (uint256 stableCoinAmount) {
     require(wethIn != 0, "ZERO_SHARES");
+    require(CPF.balanceOf(to) >= wethIn, "INSUFFICIENT_CPF_BALANCE");
     require(CPF.transferFrom(to, address(this), wethIn));
     stableCoinAmount = previewDeposit(wethIn);
     require(stableCoinAmount != 0, "ZERO_SHARES");
