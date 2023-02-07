@@ -984,17 +984,20 @@ function fund(uint256 volCoinAmount, address to) public returns (uint256 wethIn)
 
     /// @notice Volatility/Funding token
     /// Redeem number of SHARES (VolToken) for WETH at current price (at loss or profit) + fees accrued
-    function defund(
-        uint256 volCoinAmount,
-        address to,
-        address from
+function defund(
+    uint256 volCoinAmount,
+    address to,
+    address from
     ) public returns (uint256 wethOut) {
-        require((wethOut = previewDefund(volCoinAmount)) != 0, "ZERO_ASSETS");
-        volatile.burn(to, volCoinAmount);
-        volatilityBuffer -= wethOut;
-        CPF.transferFrom(address(this), msg.sender, wethOut);
-        emit Withdraw(from, to, wethOut, volCoinAmount);
-    }
+    require(to != address(0), "Invalid recipient address: cannot withdraw to the zero address");
+    require(volCoinAmount > 0, "Invalid withdrawal amount: must be greater than zero");
+    require(volatile.isValidBurn(to, volCoinAmount), "Invalid burn: insufficient volatile coin balance");
+    require((wethOut = previewDefund(volCoinAmount)) != 0, "No assets to withdraw: check the amount and try again");
+    require(CPF.transfer(address(this), msg.sender, wethOut), "Transfer of CPF failed");
+    volatile.burn(to, volCoinAmount);
+    volatilityBuffer -= wethOut;
+    emit Withdraw(from, to, wethOut, volCoinAmount);
+}
 
     function previewFund(uint256 amount) public view returns (uint256 stableVaultShares) {
         return amount / getLatestPrice() * 1e18; // AMOUNT / (ETH/USD)
