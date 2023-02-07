@@ -908,6 +908,7 @@ contract StableVault is ERC20, IERC4626 {
     /// Give WETH amount, get STABLE amount
 function deposit(uint256 wethIn, address to) public override returns (uint256 stableCoinAmount) {
     require(wethIn != 0, "ZERO_SHARES");
+    require(wethIn >= 100 * 1e18, "DEPOSIT_AMOUNT_TOO_LOW");
     require(CPF.balanceOf(to) >= wethIn, "INSUFFICIENT_CPF_BALANCE");
     require(CPF.allowance(to, address(this)) >= wethIn, "CPF_ALLOWANCE_NOT_GRANTED");
     require(CPF.transferFrom(to, address(this), wethIn));
@@ -921,6 +922,7 @@ function deposit(uint256 wethIn, address to) public override returns (uint256 st
 function mint(uint256 stableCoinAmount, address to) public override returns (uint256 wethIn) {
     require(to != address(0), "Invalid address");
     require(stableCoinAmount > 0, "Stable coin amount must be greater than 0");
+    require(stableCoinAmount >= 100 * 1e18, "MINT_AMOUNT_TOO_LOW");
     wethIn = previewMint(stableCoinAmount);
     require(wethIn > 0, "Preview mint failed");
     require(CPF.allowance(msg.sender, address(this)) >= wethIn, "Allowance is insufficient");
@@ -938,6 +940,7 @@ function withdraw(
         address from
     ) public override returns (uint256 wethOut) {
         require(to != address(0), "Invalid address");
+        require(wethOut >= 100 * 1e18, "Withdraw_AMOUNT_TOO_LOW");
         require(to != address(this), "Destination address cannot be this contract");
         require(amountReserve > 0, "Reserve amount must be greater than 0");
         uint256 allowed = allowance[from][msg.sender];
@@ -957,6 +960,7 @@ function redeem(
         address from
     ) public override returns (uint256 wethOut) {
         require(to != address(0), "Invalid address");
+        require(wethOut >= 100 * 1e18, "redeem_AMOUNT_TOO_LOW");
         require(amountStable > 0, "Stable coin amount must be greater than 0");
         uint256 allowed = allowance[from][msg.sender];
         if (msg.sender != from) {
@@ -974,6 +978,7 @@ function redeem(
     /// Give amount of WETH, receive VolatilityToken
 function fund(uint256 volCoinAmount, address to) public returns (uint256 wethIn) {
     require(to != address(0), "Invalid address: cannot deposit to the zero address");
+    require(VolatilityToken >= 100 * 1e18, "VolatilityToken_AMOUNT_TOO_LOW");
     require(volCoinAmount > 0, "Invalid deposit amount: must be greater than zero");
     require(CPF.allowance(msg.sender, address(this)) >= volCoinAmount, "Not enough CPF allowed");
     require(CPF.transferFrom(msg.sender, address(this), wethIn = previewFund(volCoinAmount)), "Transfer from CPF failed");
