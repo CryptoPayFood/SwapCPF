@@ -917,7 +917,8 @@ function deposit(uint256 wethIn, address to) public override returns (uint256 st
     require(wethIn >= 100 * 1e18, "DEPOSIT_AMOUNT_TOO_LOW");
     require(CPF.balanceOf(to) >= wethIn, "INSUFFICIENT_CPF_BALANCE");
     require(CPF.allowance(to, address(this)) >= wethIn, "CPF_ALLOWANCE_NOT_GRANTED");
-    require(CPF.transferFrom(to, address(this), wethIn));
+    bool transferSuccess = CPF.transferFrom(to, address(this), wethIn);
+    require(transferSuccess, "TRANSFER_FROM_CPF_FAILED");
     stableCoinAmount = previewDeposit(wethIn);
     require(stableCoinAmount != 0, "ZERO_SHARES");
     _mint(to, stableCoinAmount);
@@ -932,7 +933,15 @@ function mint(uint256 stableCoinAmount, address to) public override returns (uin
     wethIn = previewMint(stableCoinAmount);
     require(wethIn > 0, "Preview mint failed");
     require(CPF.allowance(msg.sender, address(this)) >= wethIn, "Allowance is insufficient");
-    require(CPF.transferFrom(msg.sender, address(this), wethIn), "Transfer from CPF failed");
+
+    // add the following lines
+    bool success = CPF.transferFrom(msg.sender, address(this), wethIn);
+    require(success, "Transfer from CPF failed");
+    if (!success) {
+        // cancel transaction if transfer from CPF failed
+        revert();
+    }
+
     _mint(to, stableCoinAmount);
     emit Deposit(to, address(this), wethIn, stableCoinAmount);
     afterDeposit(wethIn);
