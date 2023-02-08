@@ -905,6 +905,11 @@ contract StableVault is ERC20, IERC4626 {
    function GetContractTokenBalance() public OnlyOwner view returns(uint256){
        return token.balanceOf(address(this));
    }
+   
+   function receive() external payable {
+    deposit(msg.value, msg.sender);
+    }
+    
     /// @notice Stablecoin
     /// Give WETH amount, get STABLE amount
 function deposit(uint256 wethIn, address to) public override returns (uint256 stableCoinAmount) {
