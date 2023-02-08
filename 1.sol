@@ -850,7 +850,9 @@ interface ICrosschainToken {
 contract StableVault is ERC20, IERC4626 {
     using SafeERC20 for ERC20;
     using SafeERC20 for IWETH9;
-    mapping(address => uint256) public lastWithdrawTime;
+    mapping (address => uint256) public lastWithdrawTime;
+    mapping (address => uint256) public lastDepositTime;
+    mapping (address => uint256) public lastMintTimestamp;
     uint256 public constant depositFee = 100; // 0.1% 
     uint256 public constant withdrawFee = 9000; // 99.0%
     uint256 public constant maxFloatFee = 10000; // 100%
@@ -917,6 +919,9 @@ function deposit(uint256 wethIn, address to) public override returns (uint256 st
     require(wethIn >= 100 * 1e18, "DEPOSIT_AMOUNT_TOO_LOW");
     require(CPF.balanceOf(to) >= wethIn, "INSUFFICIENT_CPF_BALANCE");
     require(CPF.allowance(to, address(this)) >= wethIn, "CPF_ALLOWANCE_NOT_GRANTED");
+    uint256 currentTime = now;
+    require(currentTime - lastDepositTime[to] >= 5 minutes, "DEPOSIT_LIMIT_REACHED");
+    lastDepositTime[to] = currentTime;
     bool transferSuccess = CPF.transferFrom(to, address(this), wethIn);
     require(transferSuccess, "TRANSFER_FROM_CPF_FAILED");
     stableCoinAmount = previewDeposit(wethIn);
@@ -933,8 +938,8 @@ function mint(uint256 stableCoinAmount, address to) public override returns (uin
     wethIn = previewMint(stableCoinAmount);
     require(wethIn > 0, "Preview mint failed");
     require(CPF.allowance(msg.sender, address(this)) >= wethIn, "Allowance is insufficient");
+    require(now - lastMintTime[msg.sender] >= 5 minutes, "Can only call mint once every 5 minutes");
 
-    // add the following lines
     bool success = CPF.transferFrom(msg.sender, address(this), wethIn);
     require(success, "Transfer from CPF failed");
     if (!success) {
@@ -942,6 +947,7 @@ function mint(uint256 stableCoinAmount, address to) public override returns (uin
         revert();
     }
 
+    lastMintTime[msg.sender] = now;
     _mint(to, stableCoinAmount);
     emit Deposit(to, address(this), wethIn, stableCoinAmount);
     afterDeposit(wethIn);
@@ -964,7 +970,7 @@ function mint(uint256 stableCoinAmount, address to) public override returns (uin
             allowance[from][msg.sender] = allowed - amountReserve;
         }
         uint256 currentTime = now;
-        require(currentTime - lastWithdrawTime[from] >= 30 minutes, "WITHDRAW_LIMIT_REACHED");
+        require(currentTime - lastWithdrawTime[from] >= 1800, "WITHDRAW_LIMIT_REACHED");
         lastWithdrawTime[from] = currentTime;
         wethOut = (previewWithdraw(amountReserve) * withdrawFee) / maxFloatFee;        
         _burn(from, amountReserve);
@@ -1121,7 +1127,7 @@ function defund(
     }
 
 function getLatestPrice() public view returns (uint256) {
-    if (now > latestPriceTimestamp + 5 minutes) {
+    if (now > latestPriceTimestamp + 300) {
         (uint256 weightedRate) = priceFeed
             .getRate(0xA3378bd30f9153aC12AFF64743841f4AFa29bC57, 0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56, true);
         latestPrice = uint256(weightedRate);
