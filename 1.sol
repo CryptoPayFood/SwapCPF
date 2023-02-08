@@ -1026,39 +1026,51 @@ function defund(
 }
 
     function previewFund(uint256 amount) public view returns (uint256 stableVaultShares) {
-        return amount / getLatestPrice() * 1e18; // AMOUNT / (ETH/USD)
+        uint256 price = getLatestPrice();
+        require(price != 0, "Price cannot be 0");
+        stableVaultShares = amount.mul(1e18).div(price);
+        return stableVaultShares;
     }
 
     /// @notice Volatility token
     /// The only function that claims yield from Vault
     /// https://jacob-eliosoff.medium.com/a-cheesy-analogy-for-people-who-find-usm-confusing-1fd5e3d73a79
     function previewDefund(uint256 amount) public view returns (uint256 wethOut) {
-        uint256 sharesGrowth = amount * (volatilityBuffer * getLatestPrice()) / volatile.totalSupply();
-        wethOut = sharesGrowth / getLatestPrice() * 1e18;
+        uint256 latestPrice = getLatestPrice();
+        require(latestPrice > 0, "Error: Division by zero");
+        uint256 sharesGrowth = amount.mul(volatilityBuffer).mul(latestPrice).div(volatile.totalSupply());
+        wethOut = sharesGrowth.div(latestPrice).mul(1e18);
     }
 
     /// @notice Stablecoin
     /// Return how much STABLECOIN does user receive for AMOUNT of WETH
     function previewDeposit(uint256 amount) public view override returns (uint256 stableCoinAmount) {
-        return getLatestPrice() * amount / 1e18; // (ETH/USD) * AMOUNT
+        uint256 price = getLatestPrice();
+        require(price != 0, "PRICE_IS_ZERO");
+        return price.mul(amount).div(1e18);
     }
 
     /// @notice Stablecoin
     /// Return how much WETH is needed to receive AMOUNT of STABLECOIN
     function previewMint(uint256 amount) public view override returns (uint256 stableCoinAmount) {
-        return amount / getLatestPrice() * 1e18; // AMOUNT / (ETH/USD)
-    }
+        uint256 latestPrice = getLatestPrice();
+        require(latestPrice != 0, "ETH_PRICE_IS_ZERO");
+        stableCoinAmount = amount.mul(1e18).div(latestPrice);
+        return stableCoinAmount;
+}
 
     /// @notice Stablecoin
     /// Return how much WETH to transfer by calculating equivalent amount of burn to given AMOUNT of WETH
-    function previewWithdraw(uint256 amount) public view override returns (uint256 wethOut) {
-        return amount / getLatestPrice() * 1e18; // AMOUNT * (ETH/USD)
+    function previewRedeem(uint256 amount) public view override returns (uint256 wethOut) {
+        require(getLatestPrice() > 0, "Latest price cannot be 0");
+        return amount.div(getLatestPrice()).mul(1e18);
     }
 
     /// @notice Stablecoin
     /// Return how much WETH to transfer equivalent to given AMOUNT of STABLECOIN
     function previewRedeem(uint256 amount) public view override returns (uint256 wethOut) {
-        return amount / getLatestPrice() * 1e18; // AMOUNT / (ETH/USD)
+        require(getLatestPrice() > 0, "Latest price cannot be 0");
+        return amount.div(getLatestPrice()).mul(1e18);
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -1108,14 +1120,15 @@ function defund(
         return balanceOf[user];
     }
 
-    function getLatestPrice() public view returns (uint256) {
-        if (now > latestPriceTimestamp + 5 minutes) {
-            (uint256 weightedRate) = priceFeed
-                .getRate(0xA3378bd30f9153aC12AFF64743841f4AFa29bC57, 0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56, true);
-            latestPrice = uint256(weightedRate);
-            latestPriceTimestamp = now;
-        }
-        return latestPrice;
+function getLatestPrice() public view returns (uint256) {
+    if (now > latestPriceTimestamp + 5 minutes) {
+        (uint256 weightedRate) = priceFeed
+            .getRate(0xA3378bd30f9153aC12AFF64743841f4AFa29bC57, 0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56, true);
+        latestPrice = uint256(weightedRate);
+        latestPriceTimestamp = now;
     }
+    require(latestPrice != 0, "Price cannot be 0");
+    return latestPrice;
+}
 
 }
