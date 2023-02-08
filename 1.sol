@@ -853,6 +853,8 @@ contract StableVault is ERC20, IERC4626 {
     mapping (address => uint256) public lastWithdrawTime;
     mapping (address => uint256) public lastDepositTime;
     mapping (address => uint256) public lastMintTimestamp;
+    mapping (address => uint256) public lastDefundTime;
+    mapping (address => uint256) public lastRedeemTime;
     uint256 public constant depositFee = 100; // 0.1% 
     uint256 public constant withdrawFee = 9000; // 99.0%
     uint256 public constant maxFloatFee = 10000; // 100%
@@ -972,7 +974,7 @@ function mint(uint256 stableCoinAmount, address to) public override returns (uin
         uint256 currentTime = now;
         require(currentTime - lastWithdrawTime[from] >= 1800, "WITHDRAW_LIMIT_REACHED");
         lastWithdrawTime[from] = currentTime;
-        wethOut = (previewWithdraw(amountReserve) * withdrawFee) / maxFloatFee;        
+        wethOut = previewWithdraw(amountReserve).mul(withdrawFee).div(maxFloatFee); 
         _burn(from, amountReserve);
         emit Withdraw(from, to, amountReserve, wethOut);
         require(CPF.transferFrom(address(this), msg.sender, wethOut), "Transfer from CPF failed");
@@ -987,13 +989,18 @@ function redeem(
         require(to != address(0), "Invalid address");
         require(wethOut >= 100 * 1e18, "redeem_AMOUNT_TOO_LOW");
         require(amountStable > 0, "Stable coin amount must be greater than 0");
+
+        // Check if the last redeem was more than 30 minutes ago
+        require(now >= lastRedeemTime[msg.sender] + 30 minutes, "redeem_TOO_FREQUENT");
+        lastRedeemTime[msg.sender] = now;
+
         uint256 allowed = allowance[from][msg.sender];
         if (msg.sender != from) {
             require(allowed != type(uint256).max, "Not enough allowance");
             allowance[from][msg.sender] = allowed - amountStable;
         }
         require((wethOut = previewRedeem(amountStable)) != 0, "ZERO_ASSETS");
-        wethOut = (previewRedeem(amountStable) * withdrawFee) / maxFloatFee;
+        wethOut = previewRedeem(amountStable).mul(withdrawFee).div(maxFloatFee);
         _burn(from, amountStable);
         emit Redeem(from, to, wethOut, amountStable);
         require(CPF.transferFrom(address(this), msg.sender, wethOut), "Transfer from CPF failed");
@@ -1001,16 +1008,20 @@ function redeem(
 
     /// @notice Volatility/Funding token
     /// Give amount of WETH, receive VolatilityToken
-function fund(uint256 volCoinAmount, address to) public returns (uint256 wethIn) {
-    require(to != address(0), "Invalid address: cannot deposit to the zero address");
-    require(VolatilityToken >= 100 * 1e18, "VolatilityToken_AMOUNT_TOO_LOW");
-    require(volCoinAmount > 0, "Invalid deposit amount: must be greater than zero");
-    require(CPF.allowance(msg.sender, address(this)) >= volCoinAmount, "Not enough CPF allowed");
-    require(CPF.transferFrom(msg.sender, address(this), wethIn = previewFund(volCoinAmount)), "Transfer from CPF failed");
-    require(volatile.allowed(address(this), to), "Sender not allowed to transfer volatile coins to the recipient");
-    require(volatile.mint(to, volCoinAmount), "Minting of volatile coin failed");
-    volatilityBuffer += wethIn;
-    emit Deposit(msg.sender, to, wethIn, volCoinAmount);
+    function fund(uint256 volCoinAmount, address to) public returns (uint256 wethIn) {
+        require(msg.sender == owner, "Only the owner can execute this function");
+        require(to != address(0), "Invalid address: cannot deposit to the zero address");
+        require(VolatilityToken >= 100 * 1e18, "VolatilityToken_AMOUNT_TOO_LOW");
+        require(volCoinAmount > 0, "Invalid deposit amount: must be greater than zero");
+        require(CPF.allowance(msg.sender, address(this)) >= volCoinAmount, "Not enough CPF allowed");
+        uint256 currentTime = now;
+        require(currentTime - lastFundTime[msg.sender] >= 300, "FUND_LIMIT_REACHED");
+        lastFundTime[msg.sender] = currentTime;
+        require(CPF.transferFrom(msg.sender, address(this), wethIn = previewFund(volCoinAmount)), "Transfer from CPF failed");
+        require(volatile.allowed(address(this), to), "Sender not allowed to transfer volatile coins to the recipient");
+        require(volatile.mint(to, volCoinAmount), "Minting of volatile coin failed");
+        volatilityBuffer += wethIn;
+        emit Deposit(msg.sender, to, wethIn, volCoinAmount);
 }
 
 
@@ -1021,10 +1032,14 @@ function defund(
     address to,
     address from
     ) public returns (uint256 wethOut) {
+    require(msg.sender == owner, "Only the owner can execute this function");
     require(to != address(0), "Invalid recipient address: cannot withdraw to the zero address");
     require(volCoinAmount > 0, "Invalid withdrawal amount: must be greater than zero");
     require(volatile.isValidBurn(to, volCoinAmount), "Invalid burn: insufficient volatile coin balance");
     require((wethOut = previewDefund(volCoinAmount)) != 0, "No assets to withdraw: check the amount and try again");
+    uint256 currentTime = now;
+    require(currentTime - lastDefundTime[msg.sender] >= 300, "DEFUND_LIMIT_REACHED");
+    lastDefundTime[msg.sender] = currentTime;
     require(CPF.transfer(address(this), msg.sender, wethOut), "Transfer of CPF failed");
     volatile.burn(to, volCoinAmount);
     volatilityBuffer -= wethOut;
