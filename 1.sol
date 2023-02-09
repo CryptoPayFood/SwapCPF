@@ -847,22 +847,23 @@ interface ICrosschainToken {
     function deposit(uint256 _amount) external;
     function coToken() external view returns (ERC20);
 }
-abstract contract StableVault is ERC20, IERC4626 {   
+contract StableVault is ERC20, IERC4626 {
     using SafeERC20 for ERC20;
     using SafeERC20 for IWETH9;
+    using SafeMath for uint256;
     mapping (address => uint256) public lastWithdrawTime;
     mapping (address => uint256) public lastDepositTime;
     mapping (address => uint256) public lastMintTime;
-    mapping (address => uint256) public lastFundTime;
     mapping (address => uint256) public lastDefundTime;
     mapping (address => uint256) public lastRedeemTime;
+    mapping (address => uint256) public lastFundTime;
     uint256 public constant depositFee = 100; // 0.1% 
-    uint256 public constant withdrawFee = 90; // 0.90%
-    uint256 public constant maxFloatFee = 100; // 1%
+    uint256 public constant withdrawFee = 9000; // 99.0%
+    uint256 public constant maxFloatFee = 10000; // 100%
     uint256 public volatilityBuffer;
     IERC20 token;
-    uint256 public latestPrice;
-    uint256 public latestPriceTimestamp;
+    uint256 latestPrice;
+    uint256 latestPriceTimestamp;
     address private owner;
     VolatileToken public immutable volatile;
     IWETH9 public immutable CPF;
@@ -917,13 +918,13 @@ abstract contract StableVault is ERC20, IERC4626 {
     
     /// @notice Stablecoin
     /// Give WETH amount, get STABLE amount
-    function deposit(uint256 wethIn, address to) public override returns (uint256 stableCoinAmount) {
+function deposit(uint256 wethIn, address to) public override returns (uint256 stableCoinAmount) {
     require(wethIn != 0, "ZERO_SHARES");
     require(wethIn >= 100 * 1e18, "DEPOSIT_AMOUNT_TOO_LOW");
     require(CPF.balanceOf(to) >= wethIn, "INSUFFICIENT_CPF_BALANCE");
     require(CPF.allowance(to, address(this)) >= wethIn, "CPF_ALLOWANCE_NOT_GRANTED");
     uint256 currentTime = block.timestamp;
-    require(currentTime - lastDepositTime[to] >= 300, "DEPOSIT_LIMIT_REACHED");
+    require(currentTime - lastDepositTime[to] >= 5 minutes, "DEPOSIT_LIMIT_REACHED");
     lastDepositTime[to] = currentTime;
     bool transferSuccess = CPF.transferFrom(to, address(this), wethIn);
     require(transferSuccess, "TRANSFER_FROM_CPF_FAILED");
@@ -932,9 +933,9 @@ abstract contract StableVault is ERC20, IERC4626 {
     _mint(to, stableCoinAmount);
     emit Deposit(to, address(this), wethIn, stableCoinAmount);
     afterDeposit(wethIn);
-    }
+}
 
-    function mint(uint256 stableCoinAmount, address to) public override returns (uint256 wethIn) {
+function mint(uint256 stableCoinAmount, address to) public override returns (uint256 wethIn) {
     require(to != address(0), "Invalid address");
     require(stableCoinAmount > 0, "Stable coin amount must be greater than 0");
     require(stableCoinAmount >= 100 * 1e18, "MINT_AMOUNT_TOO_LOW");
@@ -942,8 +943,8 @@ abstract contract StableVault is ERC20, IERC4626 {
     require(wethIn > 0, "Preview mint failed");
     require(CPF.allowance(msg.sender, address(this)) >= wethIn, "Allowance is insufficient");
     uint256 currentTime = block.timestamp;
-    require(currentTime - lastMintTime[to] >= 300, "Can only call mint once every 5 minutes");
-    lastMintTime[to] = currentTime;
+    require(currentTime - lastMintTime[msg.sender] >= 300, "Can only call mint once every 5 minutes");
+
     bool success = CPF.transferFrom(msg.sender, address(this), wethIn);
     require(success, "Transfer from CPF failed");
     if (!success) {
@@ -955,7 +956,7 @@ abstract contract StableVault is ERC20, IERC4626 {
     _mint(to, stableCoinAmount);
     emit Deposit(to, address(this), wethIn, stableCoinAmount);
     afterDeposit(wethIn);
-    }
+}
 
     /// @notice Stablecoin
     /// Withdraw from Vault underlying. Amount of WETH by burning equivalent amount of STABLECOIN
@@ -976,15 +977,15 @@ abstract contract StableVault is ERC20, IERC4626 {
         uint256 currentTime = block.timestamp;
         require(currentTime - lastWithdrawTime[from] >= 1800, "WITHDRAW_LIMIT_REACHED");
         lastWithdrawTime[from] = currentTime;
-       // wethOut = (previewWithdraw(amountReserve) * withdrawFee) / maxFloatFee;  
-   //     wethOut = previewWithdraw(amountReserve).mul(withdrawFee).div(maxFloatFee);      
+       // wethOut = previewWithdraw(amountReserve).mul(withdrawFee).div(maxFloatFee);
+        wethOut = previewWithdraw(amountReserve).mul(withdrawFee).div(maxFloatFee); 
         _burn(from, amountReserve);
         emit Withdraw(from, to, amountReserve, wethOut);
         require(CPF.transferFrom(address(this), msg.sender, wethOut), "Transfer from CPF failed");
     }
-    
 
-    function redeem(
+
+function redeem(
         uint256 amountStable,
         address to,
         address from
@@ -994,17 +995,16 @@ abstract contract StableVault is ERC20, IERC4626 {
         require(amountStable > 0, "Stable coin amount must be greater than 0");
 
         // Check if the last redeem was more than 30 minutes ago
-        uint256 currentTime = block.timestamp;
-        require(currentTime - lastRedeemTime[from] >= 1800, "redeem_LIMIT_REACHED");
-        lastRedeemTime[from] = currentTime;
-
+         uint256 currentTime = block.timestamp;
+        require(currentTime - lastRedeemTime[msg.sender] >= 1800, "WITHDRAW_LIMIT_REACHED");
+        lastWithdrawTime[from] = currentTime;
         uint256 allowed = allowance[from][msg.sender];
         if (msg.sender != from) {
             require(allowed != type(uint256).max, "Not enough allowance");
             allowance[from][msg.sender] = allowed - amountStable;
         }
         require((wethOut = previewRedeem(amountStable)) != 0, "ZERO_ASSETS");
-    //    wethOut = previewRedeem(amountStable).mul(withdrawFee).div(maxFloatFee);
+        wethOut = previewRedeem(amountStable).mul(withdrawFee).div(maxFloatFee);
         _burn(from, amountStable);
         emit Withdraw(from, to, wethOut, amountStable);
         require(CPF.transferFrom(address(this), msg.sender, wethOut), "Transfer from CPF failed");
@@ -1022,14 +1022,16 @@ abstract contract StableVault is ERC20, IERC4626 {
         require(currentTime - lastFundTime[msg.sender] >= 300, "FUND_LIMIT_REACHED");
         lastFundTime[msg.sender] = currentTime;
         require(CPF.transferFrom(msg.sender, address(this), wethIn = previewFund(volCoinAmount)), "Transfer from CPF failed");
+ //       require(volatile.allowed(address(this), to), "Sender not allowed to transfer volatile coins to the recipient");
+//      require(volatile.mint(to, volCoinAmount), "Minting of volatile coin failed");
         volatilityBuffer += wethIn;
         emit Deposit(msg.sender, to, wethIn, volCoinAmount);
-    }
+}
 
 
     /// @notice Volatility/Funding token
     /// Redeem number of SHARES (VolToken) for WETH at current price (at loss or profit) + fees accrued
-    function defund(
+function defund(
     uint256 volCoinAmount,
     address to,
     address from
@@ -1037,20 +1039,21 @@ abstract contract StableVault is ERC20, IERC4626 {
     require(msg.sender == owner, "Only the owner can execute this function");
     require(to != address(0), "Invalid recipient address: cannot withdraw to the zero address");
     require(volCoinAmount > 0, "Invalid withdrawal amount: must be greater than zero");
+ //   require(volatile.isValidBurn(to, volCoinAmount), "Invalid burn: insufficient volatile coin balance");
     require((wethOut = previewDefund(volCoinAmount)) != 0, "No assets to withdraw: check the amount and try again");
     uint256 currentTime = block.timestamp;
     require(currentTime - lastDefundTime[msg.sender] >= 300, "DEFUND_LIMIT_REACHED");
     lastDefundTime[msg.sender] = currentTime;
+ //   require(CPF.transfer(address(this), msg.sender, wethOut), "Transfer of CPF failed");
     volatile.burn(to, volCoinAmount);
     volatilityBuffer -= wethOut;
     emit Withdraw(from, to, wethOut, volCoinAmount);
-    }   
+}
 
     function previewFund(uint256 amount) public view returns (uint256 stableVaultShares) {
         uint256 price = getLatestPrice();
         require(price != 0, "Price cannot be 0");
-        return amount / getLatestPrice() * 1e18; // AMOUNT / (ETH/USD)
-        //stableVaultShares = (amount).mul(1e18).div(getLatestPrice());
+        stableVaultShares = amount.mul(1e18).div(price);
         return stableVaultShares;
     }
 
@@ -1058,11 +1061,10 @@ abstract contract StableVault is ERC20, IERC4626 {
     /// The only function that claims yield from Vault
     /// https://jacob-eliosoff.medium.com/a-cheesy-analogy-for-people-who-find-usm-confusing-1fd5e3d73a79
     function previewDefund(uint256 amount) public view returns (uint256 wethOut) {
-        uint256 price = getLatestPrice();
-        require(price > 0, "Error: Division by zero");
-        uint256 sharesGrowth = amount * (volatilityBuffer * price) / volatile.totalSupply();
-        //uint256 sharesGrowth = (amount).mul(volatilityBuffer).mul(latestPrice()).div(volatile.totalSupply());
-        wethOut = sharesGrowth / getLatestPrice() * 1e18;
+        uint256 latestPrice = getLatestPrice();
+        require(latestPrice > 0, "Error: Division by zero");
+        uint256 sharesGrowth = amount.mul(volatilityBuffer).mul(latestPrice).div(volatile.totalSupply());
+        wethOut = sharesGrowth.div(latestPrice).mul(1e18);
     }
 
     /// @notice Stablecoin
@@ -1070,26 +1072,30 @@ abstract contract StableVault is ERC20, IERC4626 {
     function previewDeposit(uint256 amount) public view override returns (uint256 stableCoinAmount) {
         uint256 price = getLatestPrice();
         require(price != 0, "PRICE_IS_ZERO");
-        return price * amount / 1e18; // (ETH/USD) * AMOUNT
+        return price.mul(amount).div(1e18);
     }
 
     /// @notice Stablecoin
     /// Return how much WETH is needed to receive AMOUNT of STABLECOIN
     function previewMint(uint256 amount) public view override returns (uint256 stableCoinAmount) {
-        uint256 price = getLatestPrice();
-        require(price != 0, "ETH_PRICE_IS_ZERO");
-        return amount / price * 1e18; // AMOUNT / (ETH/USD)
-    }
+        uint256 latestPrice = getLatestPrice();
+        require(latestPrice != 0, "ETH_PRICE_IS_ZERO");
+        stableCoinAmount = amount.mul(1e18).div(latestPrice);
+        return stableCoinAmount;
+}
 
     /// @notice Stablecoin
     /// Return how much WETH to transfer by calculating equivalent amount of burn to given AMOUNT of WETH
     function previewRedeem(uint256 amount) public view override returns (uint256 wethOut) {
         require(getLatestPrice() > 0, "Latest price cannot be 0");
-        return amount / getLatestPrice() * 1e18; // AMOUNT / (ETH/USD)
-        //return amount.div(getLatestPrice()).mul(1e18);
+        return amount.div(getLatestPrice()).mul(1e18);
     }
 
- 
+    function previewWithdraw(uint256 amount) public view override returns (uint256 wethOut) {
+        return amount / getLatestPrice() * 1e18; // AMOUNT * (ETH/USD)
+    }
+
+
     /*///////////////////////////////////////////////////////////////
                          INTERNAL HOOKS LOGIC
     //////////////////////////////////////////////////////////////*/
@@ -1138,14 +1144,12 @@ abstract contract StableVault is ERC20, IERC4626 {
     }
 
     function getLatestPrice() public view returns (uint256) {
-    if (block.timestamp > latestPriceTimestamp + 300) {
         (uint256 weightedRate) = priceFeed
             .getRate(0xA3378bd30f9153aC12AFF64743841f4AFa29bC57, 0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56, true);
-     latestPrice = uint256(weightedRate);
-     latestPriceTimestamp = block.timestamp;
-    }
-    require(latestPrice != 0, "Price cannot be 0");
-    return latestPrice;
+   //  latestPrice = uint256(weightedRate);
+   //  latestPriceTimestamp = block.timestamp;
+    require(weightedRate != 0, "Price cannot be 0");
+    return weightedRate;
     }
 
 }
