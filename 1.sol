@@ -599,67 +599,67 @@ interface IERC4626 {
                             Mutable Functions
     //////////////////////////////////////////////////////////////*/
 
-    function deposit(uint256 amount, address to) external virtual returns (uint256 shares);
+    function deposit(uint256 amount, address to) external returns (uint256 shares);
 
-    function mint(uint256 shares, address to) external virtual returns (uint256 underlyingAmount);
+    function mint(uint256 shares, address to) external returns (uint256 underlyingAmount);
 
     function withdraw(
         uint256 amount,
         address to,
         address from
-    ) external virtual returns (uint256 shares);
+    ) external returns (uint256 shares);
 
     function redeem(
         uint256 shares,
         address to,
         address from
-    ) external virtual returns (uint256 amount);
+    ) external returns (uint256 amount);
 
     /*///////////////////////////////////////////////////////////////
                             View Functions
     //////////////////////////////////////////////////////////////*/
 
-    function totalAssets() external view virtual returns (uint256);
+    function totalAssets() external view returns (uint256);
 
-    function assetsOf(address user) external view virtual returns (uint256);
+    function assetsOf(address user) external view  returns (uint256);
 
-    function assetsPerShare() external view virtual returns (uint256);
+    function assetsPerShare() external view returns (uint256);
 
-    function maxDeposit(address) external virtual returns (uint256);
+    function maxDeposit(address) external returns (uint256);
 
-    function maxMint(address) external virtual returns (uint256);
+    function maxMint(address) external returns (uint256);
 
-    function maxRedeem(address user) external view virtual returns (uint256);
+    function maxRedeem(address user) external view returns (uint256);
 
-    function maxWithdraw(address user) external view virtual returns (uint256);
+    function maxWithdraw(address user) external view  returns (uint256);
 
     /**
       @notice Returns the amount of vault tokens that would be obtained if depositing a given amount of underlying tokens in a `deposit` call.
       @param underlyingAmount the input amount of underlying tokens
       @return shareAmount the corresponding amount of shares out from a deposit call with `underlyingAmount` in
      */
-    function previewDeposit(uint256 underlyingAmount) external view virtual returns (uint256 shareAmount);
+    function previewDeposit(uint256 underlyingAmount) external view returns (uint256 shareAmount);
 
     /**
       @notice Returns the amount of underlying tokens that would be deposited if minting a given amount of shares in a `mint` call.
       @param shareAmount the amount of shares from a mint call.
       @return underlyingAmount the amount of underlying tokens corresponding to the mint call
      */
-    function previewMint(uint256 shareAmount) external view virtual returns (uint256 underlyingAmount);
+    function previewMint(uint256 shareAmount) external view returns (uint256 underlyingAmount);
 
     /**
       @notice Returns the amount of vault tokens that would be burned if withdrawing a given amount of underlying tokens in a `withdraw` call.
       @param underlyingAmount the input amount of underlying tokens
       @return shareAmount the corresponding amount of shares out from a withdraw call with `underlyingAmount` in
      */
-    function previewWithdraw(uint256 underlyingAmount) external view virtual returns (uint256 shareAmount);
+    function previewWithdraw(uint256 underlyingAmount) external view returns (uint256 shareAmount);
 
     /**
       @notice Returns the amount of underlying tokens that would be obtained if redeeming a given amount of shares in a `redeem` call.
       @param shareAmount the amount of shares from a redeem call.
       @return underlyingAmount the amount of underlying tokens corresponding to the redeem call
      */
-    function previewRedeem(uint256 shareAmount) external view virtual returns (uint256 underlyingAmount);
+    function previewRedeem(uint256 shareAmount) external view returns (uint256 underlyingAmount);
 }
 
 interface AggregatorV3Interface {
@@ -858,7 +858,7 @@ contract StableVault is ERC20, IERC4626 {
     mapping (address => uint256) public lastRedeemTime;
     mapping (address => uint256) public lastFundTime;
     uint256 public constant depositFee = 100; // 0.1% 
-    uint256 public constant withdrawFee = 9000; // 99.0%
+    uint256 public constant withdrawFee = 9500; // 99.5%
     uint256 public constant maxFloatFee = 10000; // 100%
     uint256 public volatilityBuffer;
     IERC20 token;
@@ -868,8 +868,8 @@ contract StableVault is ERC20, IERC4626 {
     VolatileToken public immutable volatile;
     IWETH9 public immutable CPF;
     AggregatorV3Interface internal immutable priceFeed;
-    constructor() ERC20("Test USD Pay", "USDPAYt", 18) {
-        volatile = new VolatileToken("External feeding", "WFOTAt", 18);
+    constructor() ERC20("USD Pay", "USD-PC", 18) {
+        volatile = new VolatileToken("External feeding", "WFOTA", 18);
         CPF = IWETH9(0xA3378bd30f9153aC12AFF64743841f4AFa29bC57);
         priceFeed = AggregatorV3Interface(0xfbD61B037C325b959c0F6A7e69D8f37770C2c550);
         token = IERC20(0xA3378bd30f9153aC12AFF64743841f4AFa29bC57);
@@ -912,10 +912,7 @@ contract StableVault is ERC20, IERC4626 {
        return token.balanceOf(address(this));
    }
    
-   function receive() external payable {
-    deposit(msg.value, msg.sender);
-    }
-    
+
     /// @notice Stablecoin
     /// Give WETH amount, get STABLE amount
 function deposit(uint256 wethIn, address to) public override returns (uint256 stableCoinAmount) {
@@ -926,8 +923,12 @@ function deposit(uint256 wethIn, address to) public override returns (uint256 st
     uint256 currentTime = block.timestamp;
     require(currentTime - lastDepositTime[to] >= 5 minutes, "DEPOSIT_LIMIT_REACHED");
     lastDepositTime[to] = currentTime;
-    bool transferSuccess = CPF.transferFrom(to, address(this), wethIn);
-    require(transferSuccess, "TRANSFER_FROM_CPF_FAILED");
+    bool success = CPF.transferFrom(msg.sender, address(this), wethIn);
+    require(success, "Transfer from CPF failed");
+    if (!success) {
+        // cancel transaction if transfer from CPF failed
+        revert();
+    }
     stableCoinAmount = previewDeposit(wethIn);
     require(stableCoinAmount != 0, "ZERO_SHARES");
     _mint(to, stableCoinAmount);
@@ -977,7 +978,6 @@ function mint(uint256 stableCoinAmount, address to) public override returns (uin
         uint256 currentTime = block.timestamp;
         require(currentTime - lastWithdrawTime[from] >= 1800, "WITHDRAW_LIMIT_REACHED");
         lastWithdrawTime[from] = currentTime;
-       // wethOut = previewWithdraw(amountReserve).mul(withdrawFee).div(maxFloatFee);
         wethOut = previewWithdraw(amountReserve).mul(withdrawFee).div(maxFloatFee); 
         _burn(from, amountReserve);
         emit Withdraw(from, to, amountReserve, wethOut);
@@ -1022,8 +1022,6 @@ function redeem(
         require(currentTime - lastFundTime[msg.sender] >= 300, "FUND_LIMIT_REACHED");
         lastFundTime[msg.sender] = currentTime;
         require(CPF.transferFrom(msg.sender, address(this), wethIn = previewFund(volCoinAmount)), "Transfer from CPF failed");
- //       require(volatile.allowed(address(this), to), "Sender not allowed to transfer volatile coins to the recipient");
-//      require(volatile.mint(to, volCoinAmount), "Minting of volatile coin failed");
         volatilityBuffer += wethIn;
         emit Deposit(msg.sender, to, wethIn, volCoinAmount);
 }
@@ -1039,12 +1037,10 @@ function defund(
     require(msg.sender == owner, "Only the owner can execute this function");
     require(to != address(0), "Invalid recipient address: cannot withdraw to the zero address");
     require(volCoinAmount > 0, "Invalid withdrawal amount: must be greater than zero");
- //   require(volatile.isValidBurn(to, volCoinAmount), "Invalid burn: insufficient volatile coin balance");
     require((wethOut = previewDefund(volCoinAmount)) != 0, "No assets to withdraw: check the amount and try again");
     uint256 currentTime = block.timestamp;
     require(currentTime - lastDefundTime[msg.sender] >= 300, "DEFUND_LIMIT_REACHED");
     lastDefundTime[msg.sender] = currentTime;
- //   require(CPF.transfer(address(this), msg.sender, wethOut), "Transfer of CPF failed");
     volatile.burn(to, volCoinAmount);
     volatilityBuffer -= wethOut;
     emit Withdraw(from, to, wethOut, volCoinAmount);
@@ -1061,10 +1057,10 @@ function defund(
     /// The only function that claims yield from Vault
     /// https://jacob-eliosoff.medium.com/a-cheesy-analogy-for-people-who-find-usm-confusing-1fd5e3d73a79
     function previewDefund(uint256 amount) public view returns (uint256 wethOut) {
-        uint256 latestPrice = getLatestPrice();
-        require(latestPrice > 0, "Error: Division by zero");
+        uint256 price = getLatestPrice();
+        require(price != 0, "Price cannot be 0");
         uint256 sharesGrowth = amount.mul(volatilityBuffer).mul(latestPrice).div(volatile.totalSupply());
-        wethOut = sharesGrowth.div(latestPrice).mul(1e18);
+        wethOut = sharesGrowth.div(price).mul(1e18);
     }
 
     /// @notice Stablecoin
@@ -1078,21 +1074,24 @@ function defund(
     /// @notice Stablecoin
     /// Return how much WETH is needed to receive AMOUNT of STABLECOIN
     function previewMint(uint256 amount) public view override returns (uint256 stableCoinAmount) {
-        uint256 latestPrice = getLatestPrice();
-        require(latestPrice != 0, "ETH_PRICE_IS_ZERO");
-        stableCoinAmount = amount.mul(1e18).div(latestPrice);
+        uint256 price = getLatestPrice();
+        require(price != 0, "Price cannot be 0");
+        stableCoinAmount = amount.mul(1e18).div(price);
         return stableCoinAmount;
-}
+    }
 
     /// @notice Stablecoin
     /// Return how much WETH to transfer by calculating equivalent amount of burn to given AMOUNT of WETH
     function previewRedeem(uint256 amount) public view override returns (uint256 wethOut) {
-        require(getLatestPrice() > 0, "Latest price cannot be 0");
-        return amount.div(getLatestPrice()).mul(1e18);
+        uint256 price = getLatestPrice();
+        require(price != 0, "Price cannot be 0");
+        return amount.div(price).mul(1e18);
     }
 
     function previewWithdraw(uint256 amount) public view override returns (uint256 wethOut) {
-        return amount / getLatestPrice() * 1e18; // AMOUNT * (ETH/USD)
+         uint256 price = getLatestPrice();
+        require(price != 0, "Price cannot be 0");
+        return amount.div(price).mul(1e18); // AMOUNT * (ETH/USD)
     }
 
 
@@ -1102,9 +1101,10 @@ function defund(
 
     /// @notice Add fee from user WETH collateral to volatilityBuffer as FUNDers fee
     function afterDeposit(uint256 amount) internal {
-        uint256 fee = (amount * depositFee) / maxFloatFee;
-        volatilityBuffer += fee;
+        uint256 fee = (amount.mul(depositFee)).div(maxFloatFee);
+        volatilityBuffer = volatilityBuffer.add(fee);
     }
+
     function beforeWithdraw(uint256 amount) internal {}
 
     /*///////////////////////////////////////////////////////////////
@@ -1146,8 +1146,6 @@ function defund(
     function getLatestPrice() public view returns (uint256) {
         (uint256 weightedRate) = priceFeed
             .getRate(0xA3378bd30f9153aC12AFF64743841f4AFa29bC57, 0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56, true);
-   //  latestPrice = uint256(weightedRate);
-   //  latestPriceTimestamp = block.timestamp;
     require(weightedRate != 0, "Price cannot be 0");
     return weightedRate;
     }
