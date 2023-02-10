@@ -13,6 +13,17 @@ function sendMessageMain($getQuery) {
 echo $res;
 echo ok;
 }
+$message_history = array();
+
+if (array_key_exists($chat_id, $message_history)) {
+    $prev_message = end($message_history[$chat_id]);
+    if (count($message_history[$chat_id]) >= 5) {
+        array_shift($message_history[$chat_id]);
+    }
+} else {
+    $prev_message = "";
+}
+
 if ($request['message']) {
     $message = $request['message']['text'];
     $chat_id = $request['message']['chat']['id'];
@@ -21,6 +32,37 @@ $message = urlencode($message);
     // Замените эту строку на свой ключ API OpenAI
     $openai_api_key = "";
 $message = htmlspecialchars($message, ENT_QUOTES);
+$history = array();
+
+// Получить историю сообщений для текущего пользователя
+if (isset($history[$chat_id])) {
+  $prev_messages = $history[$chat_id];
+} else {
+  $prev_messages = array();
+}
+
+// Добавление нового сообщения к истории
+array_unshift($prev_messages, $message);
+$prev_messages = array_slice($prev_messages, 0, 5);
+$history[$chat_id] = $prev_messages;
+$history_string1 = "";
+// Отправка истории предыдущих сообщений в API
+$history_string = implode(", ", $prev_messages);
+$post_data = array(
+"prompt" => "You: " . $message + "Тут находятся предыдущие сообщения пользователя и openai api используй их для ответов: " . $history_string,
+//"context" => "Previous messages: " . $history_string,
+"max_tokens" => 1000,
+"temperature" => 0.5,
+"n" => 1,
+"top_p" => 1,
+"frequency_penalty" => 0.0,
+"presence_penalty" => 0.0,
+"stream" => false,
+"user" => "$chat_id"
+);
+$post_data = json_encode($post_data);
+
+
     // Формируем запрос к OpenAI
     $curl = curl_init();
 
@@ -33,7 +75,7 @@ $message = htmlspecialchars($message, ENT_QUOTES);
       CURLOPT_FOLLOWLOCATION => true,
       CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
       CURLOPT_CUSTOMREQUEST => "POST",
-      CURLOPT_POSTFIELDS => "{\"prompt\":\"You: ".$message."\",\"user\":\"".$chat_id."\",\"max_tokens\":1000,\"temperature\":0,\"n\":1,\"top_p\":1,\"stream\":false}",
+      CURLOPT_POSTFIELDS => $post_data,
       CURLOPT_HTTPHEADER => array(
         "Authorization: Bearer ".$openai_api_key,
         "Content-Type: application/json"
@@ -48,12 +90,11 @@ $message = htmlspecialchars($message, ENT_QUOTES);
 	$prompt_tokens = $response['usage']['prompt_tokens'];
 	$completion_tokens = $response['usage']['completion_tokens'];
 	$total_tokens = $response['usage']['total_tokens'];
-$text = rawurldecode($text);
+	$text = rawurldecode($text);
     // Отправляем сообщение пользователю
- //   $curl = curl_init();
 if($text != ""){
 $file = __DIR__."/2.txt";
-$current = "Message: ".$message1."\nBot response: ".$text."\n\n";
+$current = "Message: ".$message1."\nPrevious messages: ".$history_string."\nBot response: ".$text."\n\n";
 file_put_contents($file, $current, FILE_APPEND | LOCK_EX);
 
 if (strlen($text) > 3000) {
