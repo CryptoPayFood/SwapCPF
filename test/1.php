@@ -13,13 +13,13 @@ function sendMessageMain($getQuery) {
 echo $res;
 echo ok;
 }
-if ($request['message']) {д
+if ($request['message']) {
     $message = $request['message']['text'];
     $chat_id = $request['message']['chat']['id'];
 	$message1 = $message;
 $message = urlencode($message);
     // Замените эту строку на свой ключ API OpenAI
-    $openai_api_key = "s";
+    $openai_api_key = "";
 $message = htmlspecialchars($message, ENT_QUOTES);
     // Формируем запрос к OpenAI
     $curl = curl_init();
@@ -33,7 +33,7 @@ $message = htmlspecialchars($message, ENT_QUOTES);
       CURLOPT_FOLLOWLOCATION => true,
       CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
       CURLOPT_CUSTOMREQUEST => "POST",
-      CURLOPT_POSTFIELDS => "{\"prompt\":\"You: ".$message."\",\"max_tokens\":1000,\"temperature\":0,\"n\":1,\"top_p\":1,\"stream\":false}",
+      CURLOPT_POSTFIELDS => "{\"prompt\":\"You: ".$message."\",\"user\":\"".$chat_id."\",\"max_tokens\":1000,\"temperature\":0,\"n\":1,\"top_p\":1,\"stream\":false}",
       CURLOPT_HTTPHEADER => array(
         "Authorization: Bearer ".$openai_api_key,
         "Content-Type: application/json"
@@ -48,7 +48,7 @@ $message = htmlspecialchars($message, ENT_QUOTES);
 	$prompt_tokens = $response['usage']['prompt_tokens'];
 	$completion_tokens = $response['usage']['completion_tokens'];
 	$total_tokens = $response['usage']['total_tokens'];
-
+$text = rawurldecode($text);
     // Отправляем сообщение пользователю
  //   $curl = curl_init();
 if($text != ""){
@@ -58,12 +58,15 @@ file_put_contents($file, $current, FILE_APPEND | LOCK_EX);
 
 if (strlen($text) > 3000) {
     $text1 = substr($text, 0, 3000);
+
     $text2 = substr($text, 3000, 3000);
+
     $text3 = substr($text, 6000, strlen($text));
+
 } else {
 		$getQueryStart45 = array(
 		'chat_id' => $chat_id,
-		'text'	=> "Bot: {$text}\nfinish_reason: {$finish_reason}\nprompt_token: {$prompt_tokens}\ncompletion_tokens: {$completion_tokens}\ntotal_tokens: {$total_tokens}",
+		'text'	=> "Bot:{$text}\nfinish_reason: {$finish_reason}\nprompt_token: {$prompt_tokens}\ncompletion_tokens: {$completion_tokens}\ntotal_tokens: {$total_tokens}",
 		'parse_mode'	=> "html",
     		);
 			sendMessageMain($getQueryStart45);
